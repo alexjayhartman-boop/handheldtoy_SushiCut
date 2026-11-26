@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Sushi Cut</title>
 <style>
-html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none}
+html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none}
 #stage{position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;outline:none;cursor:ns-resize}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block}
 #bar{position:absolute;left:0;right:0;bottom:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
@@ -176,14 +176,25 @@ knobEl.addEventListener('pointermove',e=>{ if(!kd) return; e.stopPropagation(); 
   kd.acc+=d*180/Math.PI; while(kd.acc>=9){kd.acc-=9;step(1);} while(kd.acc<=-9){kd.acc+=9;step(-1);} });
 const kup=e=>{ if(e) e.stopPropagation(); kd=null; knobEl.classList.remove('down'); };
 knobEl.addEventListener('pointerup',kup); knobEl.addEventListener('pointercancel',kup);
-// drag: down lowers the knife, up raises it. A full cut is about half the scene's height
+// drag: down lowers the knife, up raises it. A full cut is ~70 scene px of drag
 let drag=null;
-stage.addEventListener('pointerdown',e=>{ stage.setPointerCapture(e.pointerId); drag={y:e.clientY,acc:0,moved:0,t:performance.now()}; });
-stage.addEventListener('pointermove',e=>{ if(!drag) return; const dy=e.clientY-drag.y; drag.y=e.clientY; drag.moved+=Math.abs(dy); drag.acc+=dy;
-  const sc=Math.min(VW/280,(VH-BAR)/150), px=Math.max(4, 70*sc/(KMAX-KMIN));   // a full cut is ~70 scene px of drag
-  while(drag.acc>=px){drag.acc-=px;step(1);} while(drag.acc<=-px){drag.acc+=px;step(-1);} });
-function endDrag(){ if(!drag) return; if(drag.moved<10 && performance.now()-drag.t<400) feed(); drag=null; }
-stage.addEventListener('pointerup',endDrag); stage.addEventListener('pointercancel',()=>drag=null);
+function dragStart(y){ drag={y,acc:0,moved:0,t:performance.now()}; }
+function dragMove(y){ if(!drag) return; const dy=y-drag.y; drag.y=y; drag.moved+=Math.abs(dy); drag.acc+=dy;
+  const sc=Math.min(VW/280,(VH-BAR)/150), px=Math.max(4, 70*sc/(KMAX-KMIN));
+  while(drag.acc>=px){drag.acc-=px;step(1);} while(drag.acc<=-px){drag.acc+=px;step(-1);} }
+function dragEnd(){ if(!drag) return; if(drag.moved<10 && performance.now()-drag.t<400) feed(); drag=null; }
+// mouse and pen
+stage.addEventListener('pointerdown',e=>{ if(e.pointerType==='touch') return; stage.setPointerCapture(e.pointerId); dragStart(e.clientY); });
+stage.addEventListener('pointermove',e=>{ if(e.pointerType==='touch') return; dragMove(e.clientY); });
+stage.addEventListener('pointerup',e=>{ if(e.pointerType==='touch') return; dragEnd(); });
+stage.addEventListener('pointercancel',e=>{ if(e.pointerType!=='touch') drag=null; });
+// touch: handled directly and never passed on, so a page this is embedded in (Framer) can't scroll or zoom instead
+const onCtl=t=>t&&t.closest&&t.closest('.ctl');
+let tid=null;
+document.addEventListener('touchstart',e=>{ e.preventDefault(); if(tid!==null||onCtl(e.target)) return; const t=e.changedTouches[0]; tid=t.identifier; dragStart(t.clientY); },{passive:false});
+document.addEventListener('touchmove',e=>{ e.preventDefault(); for(const t of e.changedTouches) if(t.identifier===tid) dragMove(t.clientY); },{passive:false});
+const tend=e=>{ for(const t of e.changedTouches) if(t.identifier===tid){ tid=null; if(e.type==='touchend') dragEnd(); else drag=null; } };
+document.addEventListener('touchend',tend,{passive:false}); document.addEventListener('touchcancel',tend,{passive:false});
 // scroll: down cuts, up lifts
 let wacc=0;
 stage.addEventListener('wheel',e=>{ e.preventDefault(); const d=e.deltaMode===1?e.deltaY*16:e.deltaY; wacc+=d;
