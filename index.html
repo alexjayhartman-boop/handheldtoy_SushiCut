@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Sushi Cut</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none}
+#stage{position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;outline:none;cursor:ns-resize}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+#bar{position:absolute;left:0;right:0;bottom:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+#btns{display:flex;align-items:flex-end;gap:28px}
+.ctl{display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:auto}
+.ctl span{font:500 11px/1 system-ui,-apple-system,sans-serif;color:#6e6e76;letter-spacing:.02em}
+#knob{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#2c2c31,#121214 72%);box-shadow:0 0 0 2px #2a2a2f,0 4px 10px #0008;position:relative;touch-action:none;cursor:grab}
+#knob i{position:absolute;left:50%;top:6px;width:2px;height:13px;margin-left:-1px;border-radius:1px;background:#c9c9cf}
+#knob.down{cursor:grabbing}
+#feed{width:40px;height:40px;border-radius:50%;border:0;padding:0;background:radial-gradient(circle at 40% 35%,#2c2c31,#121214 72%);box-shadow:0 0 0 2px #2a2a2f,0 4px 10px #0008;cursor:pointer;transition:box-shadow .3s ease,background .3s ease;-webkit-tap-highlight-color:transparent}
+#feed.ready{background:radial-gradient(circle at 40% 35%,#e0664c,#8a2a18 75%);box-shadow:0 0 0 2px #c9442b,0 0 14px #c9442b88}
+#feed.down{transform:translateY(1px) scale(.95)}
+#knob:focus-visible,#feed:focus-visible{outline:2px solid #c9442b;outline-offset:3px}
+#help{font:500 12px/1.4 system-ui,-apple-system,sans-serif;color:#6e6e76;text-align:center;letter-spacing:.01em}
+#scene{opacity:0;transition:opacity .6s ease}#stage.ready #scene{opacity:1}
+</style>
+</head>
+<body>
+<div id="stage" tabindex="0" aria-label="Sushi cut. Drag or scroll to move the knife, tap or press Space to feed the roll.">
+<canvas id="scene"></canvas>
+<div id="bar">
+  <div id="btns">
+    <div class="ctl"><div id="knob" role="slider" aria-label="Knife" tabindex="0"><i></i></div><span>knife</span></div>
+    <div class="ctl"><button id="feed" aria-label="Feed the roll"></button><span>feed</span></div>
+  </div>
+  <div id="help"></div>
+</div>
+</div>
+<script>
+{
+const MAN={"knife": [[96.806, 84.968, 191.52, 89.262, "assets/knife_12.png"], [95.096, 87.02, 191.178, 85.842, "assets/knife_13.png"], [93.386, 89.756, 191.178, 81.738, "assets/knife_14.png"], [91.676, 92.834, 190.836, 77.292, "assets/knife_15.png"], [89.966, 95.228, 190.494, 73.872, "assets/knife_16.png"], [88.256, 96.596, 190.152, 71.478, "assets/knife_17.png"], [85.862, 96.938, 190.152, 70.452, "assets/knife_18.png"], [82.784, 96.938, 190.152, 69.768, "assets/knife_19.png"], [79.706, 96.254, 189.81, 69.768, "assets/knife_20.png"], [75.944, 95.57, 190.152, 70.452, "assets/knife_21.png"], [71.498, 95.228, 190.152, 71.82, "assets/knife_22.png"], [66.71, 94.886, 190.494, 73.872, "assets/knife_23.png"], [61.922, 94.202, 190.836, 76.95, "assets/knife_24.png"], [57.476, 93.86, 190.836, 80.028, "assets/knife_25.png"], [53.714, 93.518, 190.836, 83.106, "assets/knife_26.png"], [49.952, 93.518, 191.178, 85.842, "assets/knife_27.png"], [47.216, 93.176, 191.52, 88.236, "assets/knife_28.png"], [45.506, 93.176, 191.52, 89.604, "assets/knife_29.png"], [44.822, 92.834, 191.52, 90.63, "assets/knife_30.png"], [46.19, 93.86, 191.52, 89.604, "assets/knife_31.png"], [50.294, 95.57, 191.178, 87.552, "assets/knife_32.png"], [55.766, 98.648, 191.178, 84.474, "assets/knife_33.png"], [62.606, 102.41, 190.836, 80.028, "assets/knife_34.png"], [70.472, 106.172, 190.494, 75.924, "assets/knife_35.png"], [77.996, 110.276, 190.152, 71.478, "assets/knife_36.png"], [85.178, 113.696, 189.468, 67.716, "assets/knife_37.png"], [90.992, 116.432, 189.126, 64.296, "assets/knife_38.png"], [94.754, 118.484, 189.468, 62.244, "assets/knife_39.png"], [96.464, 119.168, 188.784, 61.56, "assets/knife_40.png"]], "slice": [[77.312, 101.042, 31.806, 36.936, "assets/slice_16.png"], [77.312, 101.042, 31.806, 36.936, "assets/slice_17.png"], [77.312, 100.7, 31.806, 37.278, "assets/slice_18.png"], [77.312, 100.7, 31.806, 37.278, "assets/slice_19.png"], [77.312, 100.358, 31.806, 37.62, "assets/slice_20.png"], [77.312, 100.358, 31.806, 37.62, "assets/slice_21.png"], [77.312, 100.016, 31.806, 37.962, "assets/slice_22.png"], [76.97, 100.358, 31.806, 37.62, "assets/slice_23.png"], [75.944, 100.7, 32.148, 37.278, "assets/slice_24.png"], [74.234, 101.384, 32.49, 36.594, "assets/slice_25.png"], [72.182, 103.094, 33.516, 35.226, "assets/slice_26.png"], [69.788, 105.146, 34.542, 33.174, "assets/slice_27.png"], [67.394, 107.54, 35.568, 31.122, "assets/slice_28.png"], [65.684, 109.934, 35.568, 29.07, "assets/slice_29.png"], [63.974, 112.67, 36.252, 27.018, "assets/slice_30.png"], [62.264, 115.406, 36.936, 24.966, "assets/slice_31.png"], [60.554, 118.826, 37.278, 22.914, "assets/slice_32.png"], [59.87, 121.22, 36.936, 22.572, "assets/slice_33.png"], [59.186, 122.93, 36.936, 22.914, "assets/slice_34.png"], [58.844, 123.614, 36.594, 24.282, "assets/slice_35.png"], [58.844, 123.956, 36.252, 25.308, "assets/slice_36.png"], [58.844, 124.298, 36.252, 25.65, "assets/slice_37.png"]], "stack": {"28": [69.104, 105.488, 35.226, 32.832, "assets/stack_28.png"], "29": [68.078, 106.856, 35.226, 31.464, "assets/stack_29.png"], "30": [67.394, 107.54, 35.568, 31.122, "assets/stack_30.png"], "31": [67.052, 108.224, 35.568, 30.438, "assets/stack_31.png"], "32": [66.368, 108.566, 35.91, 30.438, "assets/stack_32.png"], "33": [66.368, 108.566, 35.568, 30.438, "assets/stack_33.png"], "34": [66.368, 108.908, 35.568, 30.096, "assets/stack_34.png"], "35": [66.026, 108.908, 35.568, 30.096, "assets/stack_35.png"], "36": [66.026, 108.908, 35.568, 30.438, "assets/stack_36.png"], "37": [66.026, 108.908, 35.568, 30.096, "assets/stack_37.png"], "48": [66.368, 108.566, 35.226, 30.78, "assets/stack_48.png"]}, "roll": [85.862, 15.2, 245.898, 119.016, "assets/roll.png"], "rollPushOff": [[8, 0], [7, 0], [6, 0], [5, 0], [4, 0], [3, 0], [2, 0], [1, 0], [0, 0]], "slicePushOff": [[8, -3], [7, -2], [6, -2], [5, -2], [4, -1], [3, -1], [2, 0], [1, 0], [0, 0]], "rollHide": {"16": "assets/roll_16.png", "17": "assets/roll_17.png", "18": "assets/roll_18.png", "19": "assets/roll_19.png", "20": "assets/roll_20.png", "21": "assets/roll_21.png", "22": "assets/roll_22.png", "23": "assets/roll_23.png", "24": "assets/roll_24.png", "25": "assets/roll_25.png", "26": "assets/roll_26.png"}};
+// ---- Sushi Cut prototype ----
+const KMIN=12, KMAX=40;      // knife frames used: 12 = knife at the top, 30 = through the roll, 40 = pulled back
+const TOPMAX=16;             // feeding is allowed while the knife frame is <= this
+const TOUCH=17, SEP=27, FLOPEND=37;   // slice starts bending, separates, lies flat
+
+
+const cv=document.getElementById('scene'), g=cv.getContext('2d');
+/* HD renders: each sprite is cropped from your 1280x960 frame; x,y,w,h place it in the 320x240 scene */
+const IMGS=[];
+function one(s){const i=new Image();i.src=s[4];IMGS.push(i);return{x:s[0],y:s[1],w:s[2],h:s[3],i};}
+const KN=MAN.knife.map(one), SL=MAN.slice.map(one);
+const STKM={}; for(const k in MAN.stack) STKM[k]=one(MAN.stack[k]);
+const ROLL=one(MAN.roll);
+// roll with its end ring hidden while a slice is still on it; the ring shows only where the knife has cut
+const ROLLV={}; for(const k in MAN.rollHide){const i=new Image();i.src=MAN.rollHide[k];IMGS.push(i);ROLLV[k]=i;}
+const RP=MAN.rollPushOff.map(o=>({...ROLL,x:ROLL.x+o[0],y:ROLL.y+o[1]}));
+const SP=MAN.slicePushOff.map(o=>({...SL[0],x:SL[0].x+o[0],y:SL[0].y+o[1]}));
+const PN=RP.length-1;
+function draw(s,dx=0,dy=0){if(s)g.drawImage(s.i,s.x+dx,s.y+dy,s.w,s.h);}
+
+// state
+const FLAT_AT=[-4,0];                // slice 1 nudges here on K0 so slice 2 can rest on it
+const STEP=[-8,3];                   // each K0 moves the pile this much, so the next slice leans on the last
+let armed=false;              // a fresh downstroke: reaching the bottom with nothing on the roll is a miss
+
+let target=KMIN, knife=KMIN;
+let attached=true;           // a fresh slice is on the roll end
+let flop=null;               // {f,lean} slice falling on its own
+let pile=[];                 // [{lean,x,y,tx,ty}] slices on the board (offsets from their sprite's own spot)
+let leaving=[];              // a delivered pile sliding away
+let push=null;               // {j}
+let count=0, sf=16;          // sf: furthest pose the attached slice has been bent to
+const nextLean=()=>pile.length>0;   // the next slice lands on the pile instead of flat
+const flatImg=f=>SL[Math.max(16,Math.min(FLOPEND,f))-16];
+const leanImg=f=>STKM[f>37?48:Math.max(28,f)];
+// leaning slices use your original slice frames through the cut (the back edge line reveals with the knife), then hand off to the Stack Slice pass as they tip
+const sliceImg=(f,lean)=>lean&&f>SEP?leanImg(f):flatImg(f);
+
+function step(d){ target=Math.max(KMIN,Math.min(KMAX,target+d)); }
+
+function k0(){
+  if(push||flop) return;
+  if(attached || knife>TOPMAX){ return; } // blocked
+  push={j:0};
+  // the newest slice moves off the landing spot; the pile shifts so the next one leans on it
+  for(const s of pile){
+    if(!s.lean && pile.length===1){ s.tx=FLAT_AT[0]; s.ty=FLAT_AT[1]; }
+    else { s.tx+=STEP[0]; s.ty+=STEP[1]; }
+  }
+  // everything on the board moves over with each feed
+  for(const grp of leaving) for(const s of grp){ s.tx+=STEP[0]; s.ty+=STEP[1]; }
+
+}
+
+function tick(){
+  const d=target-knife;
+  if(d) knife+=Math.sign(d)*Math.min(Math.abs(d),Math.abs(d)>6?2:1);
+
+  if(knife<=TOPMAX) armed=true;
+  if(attached && knife>sf) sf=Math.min(knife,SEP);
+  if(knife>=SEP && armed){ armed=false;
+    if(attached){ attached=false; flop={f:SEP,t:0,lean:nextLean()}; }
+    else if(!flop && !push && pile.length){ miss(); } }
+  if(flop){ if(++flop.t%2===0) flop.f++;
+    if(flop.f>=FLOPEND){ pile.push({lean:flop.lean,x:0,y:0,tx:0,ty:0}); flop=null; count++;
+} }
+
+  if(push){ push.j++; if(push.j>=PN){ push=null; attached=true; sf=16; } }
+  for(const s of pile){ s.x+=(s.tx-s.x)*.25; s.y+=(s.ty-s.y)*.25; }
+  // missed stacks ease to their new spot; they step along with the board on every K0
+  for(const grp of leaving) for(const s of grp){ s.x+=(s.tx-s.x)*.06; s.y+=(s.ty-s.y)*.06; }   // slow, soft glide
+  leaving=leaving.filter(grp=>grp.some(s=>s.x>-140&&s.y<160));
+  render();
+}
+
+const GAP=[-38,14];          // a cut without feeding glides the stack over one slot
+function miss(){
+  // cut air: the stack moves over one slot (older ones too); the next slice lands flat and starts a new one
+  for(const grp of [pile,...leaving]) for(const s of grp){ s.tx+=GAP[0]; s.ty+=GAP[1]; }
+  leaving.unshift(pile); pile=[];
+}
+function drawPile(list){
+  // newest leaning slice is furthest back, the flat one is in front of everything
+  const lean=list.filter(s=>s.lean), flat=list.filter(s=>!s.lean);
+  for(let i=lean.length-1;i>=0;i--){ const s=lean[i]; if(s.x<-140)continue; draw(leanImg(48),s.x,s.y); }
+  for(const s of flat){ if(s.x<-140)continue; draw(flatImg(FLOPEND),s.x,s.y); }
+  g.globalAlpha=1;
+}
+
+function render(){
+  const r=view(); g.setTransform(1,0,0,1,0,0); g.fillStyle='#000'; g.fillRect(0,0,cv.width,cv.height);
+  g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high'; g.setTransform(r.s,0,0,r.s,r.ox,r.oy);
+  const pj=push?push.j:PN;
+  const rollI=(push||attached)?ROLLV[push?16:Math.max(16,Math.min(26,sf))]:ROLL.i;
+  draw({...RP[pj],i:rollI});
+  draw(KN[knife-KMIN]);
+  if(flop) draw(sliceImg(flop.f,flop.lean));
+  if(push) draw(SP[pj]);
+  else if(attached) draw(sliceImg(sf<TOUCH?16:sf,nextLean()));
+  // older stacks sit further forward, so they draw on top
+  drawPile(pile);
+  // older stacks are closer to you: newest missed stack first, oldest last (in front)
+  for(let i=0;i<leaving.length;i++) drawPile(leaving[i]);
+  const ready=!attached&&knife<=TOPMAX&&!flop&&!push;
+  if(ready!==wasReady){ wasReady=ready; feedEl.classList.toggle('ready',ready); }
+  knobEl.style.transform=`rotate(${(knife-KMIN)*9}deg)`;
+
+}
+
+
+
+let wasReady=false;
+/* ---------- screen fit ---------- */
+const stage=document.getElementById('stage');
+let VW=1,VH=1,DPR=1;
+function resize(){ DPR=Math.min(3,window.devicePixelRatio||1); VW=stage.clientWidth; VH=stage.clientHeight;
+  cv.width=Math.round(VW*DPR); cv.height=Math.round(VH*DPR); }
+// frame the action: about 280 scene px across and 150 down, roll running off the right edge, action centred
+function view(){ const W=cv.width,H=cv.height-BAR*DPR, s=Math.min(W/280, H/150);
+  const ox=Math.max(W-320*s, -20*s), oy=H/2-118*s; return {s,ox,oy}; }
+const BAR=104;   // CSS px kept clear at the bottom for the knob, feed button and instructions
+new ResizeObserver(resize).observe(stage); resize();
+
+/* ---------- inputs ---------- */
+const feedEl=document.getElementById('feed'), knobEl=document.getElementById('knob'), knobI=knobEl.querySelector('i');
+function feed(){ feedEl.classList.add('down'); setTimeout(()=>feedEl.classList.remove('down'),110); k0(); }
+feedEl.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault(); feed(); });
+feedEl.addEventListener('click',e=>e.stopPropagation());
+// knob spot: turn it like the EC11 (clockwise cuts), 9 degrees per frame
+let kd=null, kang=0;
+knobEl.addEventListener('pointerdown',e=>{ e.stopPropagation(); knobEl.setPointerCapture(e.pointerId); const r=knobEl.getBoundingClientRect();
+  kd={cx:r.left+r.width/2,cy:r.top+r.height/2,last:Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2)),acc:0}; knobEl.classList.add('down'); });
+knobEl.addEventListener('pointermove',e=>{ if(!kd) return; e.stopPropagation(); const a=Math.atan2(e.clientY-kd.cy,e.clientX-kd.cx); let d=a-kd.last; d=Math.atan2(Math.sin(d),Math.cos(d)); kd.last=a;
+  kd.acc+=d*180/Math.PI; while(kd.acc>=9){kd.acc-=9;step(1);} while(kd.acc<=-9){kd.acc+=9;step(-1);} });
+const kup=e=>{ if(e) e.stopPropagation(); kd=null; knobEl.classList.remove('down'); };
+knobEl.addEventListener('pointerup',kup); knobEl.addEventListener('pointercancel',kup);
+// drag: down lowers the knife, up raises it. A full cut is about half the scene's height
+let drag=null;
+stage.addEventListener('pointerdown',e=>{ stage.setPointerCapture(e.pointerId); drag={y:e.clientY,acc:0,moved:0,t:performance.now()}; });
+stage.addEventListener('pointermove',e=>{ if(!drag) return; const dy=e.clientY-drag.y; drag.y=e.clientY; drag.moved+=Math.abs(dy); drag.acc+=dy;
+  const sc=Math.min(VW/280,(VH-BAR)/150), px=Math.max(4, 70*sc/(KMAX-KMIN));   // a full cut is ~70 scene px of drag
+  while(drag.acc>=px){drag.acc-=px;step(1);} while(drag.acc<=-px){drag.acc+=px;step(-1);} });
+function endDrag(){ if(!drag) return; if(drag.moved<10 && performance.now()-drag.t<400) feed(); drag=null; }
+stage.addEventListener('pointerup',endDrag); stage.addEventListener('pointercancel',()=>drag=null);
+// scroll: down cuts, up lifts
+let wacc=0;
+stage.addEventListener('wheel',e=>{ e.preventDefault(); const d=e.deltaMode===1?e.deltaY*16:e.deltaY; wacc+=d;
+  while(wacc>=24){wacc-=24;step(1);} while(wacc<=-24){wacc+=24;step(-1);} },{passive:false});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.key===' '){ e.preventDefault(); if(!e.repeat) feed(); }
+  else if(e.key==='ArrowDown'||e.key==='ArrowRight'){ e.preventDefault(); step(2); }
+  else if(e.key==='ArrowUp'||e.key==='ArrowLeft'){ e.preventDefault(); step(-2); }
+});
+stage.addEventListener('pointerdown',()=>stage.focus(),{passive:true});
+document.getElementById('help').textContent=matchMedia('(pointer:coarse)').matches?'Drag down to cut, up to lift. Tap to feed the roll.':'Scroll to cut, scroll back to lift. Space or click to feed the roll.';
+
+/* ---------- loop: fixed 30 ticks a second, drawn every frame ---------- */
+let last=performance.now(),accT=0;
+function loop(now){ accT+=Math.min(250,now-last); last=now; let n=0; while(accT>=33.33&&n<4){accT-=33.33;tick();n++;} if(n===4)accT=0; if(!n) render(); requestAnimationFrame(loop); }
+// start once the art has loaded
+let nload=0; IMGS.forEach(i=>{const go=()=>{if(++nload===IMGS.length){document.getElementById('stage').classList.add('ready');requestAnimationFrame(loop);}}; i.complete?go():(i.onload=go,i.onerror=go);});
+
+
+}
+</script>
+</body>
+</html>
