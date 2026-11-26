@@ -11,7 +11,7 @@
 html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none}
 #stage{position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;outline:none;cursor:ns-resize}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block}
-#bar{position:absolute;left:0;right:0;bottom:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+#bar{position:absolute;left:0;right:0;bottom:0;padding:8px 16px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;pointer-events:none}
 #btns{display:flex;align-items:flex-end;gap:28px}
 .ctl{display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:auto}
 .ctl span{font:500 11px/1 system-ui,-apple-system,sans-serif;color:#6e6e76;letter-spacing:.02em}
@@ -22,7 +22,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavi
 #feed.ready{background:radial-gradient(circle at 40% 35%,#e0664c,#8a2a18 75%);box-shadow:0 0 0 2px #c9442b,0 0 14px #c9442b88}
 #feed.down{transform:translateY(1px) scale(.95)}
 #knob:focus-visible,#feed:focus-visible{outline:2px solid #c9442b;outline-offset:3px}
-#help{font:500 12px/1.4 system-ui,-apple-system,sans-serif;color:#6e6e76;text-align:center;letter-spacing:.01em}
+#help{position:absolute;left:0;right:0;top:0;padding:calc(12px + env(safe-area-inset-top)) 16px 0;font:500 12px/1.4 system-ui,-apple-system,sans-serif;color:#6e6e76;text-align:center;letter-spacing:.01em;pointer-events:none}
 #scene{opacity:0;transition:opacity .6s ease}#stage.ready #scene{opacity:1}
 </style>
 </head>
@@ -34,8 +34,8 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavi
     <div class="ctl"><div id="knob" role="slider" aria-label="Knife" tabindex="0"><i></i></div><span>knife</span></div>
     <div class="ctl"><button id="feed" aria-label="Feed the roll"></button><span>feed</span></div>
   </div>
-  <div id="help"></div>
 </div>
+<div id="help"></div>
 </div>
 <script>
 {
@@ -158,9 +158,12 @@ let VW=1,VH=1,DPR=1;
 function resize(){ DPR=Math.min(3,window.devicePixelRatio||1); VW=stage.clientWidth; VH=stage.clientHeight;
   cv.width=Math.round(VW*DPR); cv.height=Math.round(VH*DPR); }
 // frame the action: about 280 scene px across and 150 down, roll running off the right edge, action centred
-function view(){ const W=cv.width,H=cv.height-BAR*DPR, s=Math.min(W/280, H/150);
-  const ox=Math.max(W-320*s, -20*s), oy=H/2-118*s; return {s,ox,oy}; }
-const BAR=104;   // CSS px kept clear at the bottom for the knob, feed button and instructions
+// centre the action (stack, roll end and knife, about x 20-290, y 70-170 in the scene) in the space between
+// the instructions at the top and the controls at the bottom
+const TOP=36, BAR=84, CX=172, CY=120;
+function view(){ const W=cv.width, top=TOP*DPR, H=cv.height-top-BAR*DPR, s=Math.min(W/280, H/118);
+  let ox=W/2-CX*s; if(W-320*s>ox) ox=W-320*s;     // never show the cut-off end of the roll on the right
+  const oy=top+H/2-CY*s; return {s,ox,oy}; }
 new ResizeObserver(resize).observe(stage); resize();
 
 /* ---------- inputs ---------- */
@@ -180,7 +183,7 @@ knobEl.addEventListener('pointerup',kup); knobEl.addEventListener('pointercancel
 let drag=null;
 function dragStart(y){ drag={y,acc:0,moved:0,t:performance.now()}; }
 function dragMove(y){ if(!drag) return; const dy=y-drag.y; drag.y=y; drag.moved+=Math.abs(dy); drag.acc+=dy;
-  const sc=Math.min(VW/280,(VH-BAR)/150), px=Math.max(4, 70*sc/(KMAX-KMIN));
+  const sc=Math.min(VW/280,(VH-TOP-BAR)/118), px=Math.max(4, 70*sc/(KMAX-KMIN));
   while(drag.acc>=px){drag.acc-=px;step(1);} while(drag.acc<=-px){drag.acc+=px;step(-1);} }
 function dragEnd(){ if(!drag) return; if(drag.moved<10 && performance.now()-drag.t<400) feed(); drag=null; }
 // mouse and pen
